@@ -9,7 +9,7 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json._
 
 import scala.collection.mutable
-import scala.concurrent.duration.{FiniteDuration, TimeUnit}
+import scala.concurrent.duration.FiniteDuration
 
 trait TimerState {
   val json: String
@@ -56,19 +56,27 @@ trait TimekeeperServiceJsonSupport extends SprayJsonSupport with DefaultJsonProt
   implicit val timerFormat: RootJsonFormat[Timer] = jsonFormat3(Timer.apply)
 }
 
+object TimekeeperService {
+  final val BasePath = "timers"
+}
 final class TimekeeperService extends TimekeeperServiceJsonSupport {
+  import TimekeeperService._
 
   val database: mutable.Map[TimerId, Timer] = mutable.Map.empty
 
-  def route: Route = getTimerRoute ~ deleteTimerRoute() ~ updateTimerRoute() ~ createTimerRoute
+  def route: Route = getAllTimersRoute ~ getOneTimerRoute ~ deleteTimerRoute() ~ updateTimerRoute() ~ createTimerRoute
 
-  def pathTimers: Directive0 = path("timers")
+  def pathTimers: Directive0 = path(BasePath)
 
   def handleCreateTimer(request: TimerStateRequest): Timer = {
     val timer = Timer(TimerId.generate, request.state, FiniteDuration.apply(0, SECONDS))
     database += timer.id -> timer
     timer
   }
+
+  def handleGetAllTimers(): Set[Timer] = database.values.toSet
+
+  def handleGetOneTimer(id: TimerId): Option[Timer] = database.get(id)
 
   // API
 
@@ -90,11 +98,20 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
   //   "id": "...",
   //   "state": ".."
   // }
-  def getTimerRoute: Route = get {
+  def getAllTimersRoute: Route = get {
     pathTimers {
-      complete("Get timer")
+      complete(handleGetAllTimers())
     }
   }
+
+  def getOneTimerRoute: Route =
+    get {
+      rejectEmptyResponse {
+        path(BasePath / Segment) { id =>
+          complete(handleGetOneTimer(TimerId(id)))
+        }
+      }
+    }
 
   // Start timer
   // PUT /timers/{id} { "state": "running" }
