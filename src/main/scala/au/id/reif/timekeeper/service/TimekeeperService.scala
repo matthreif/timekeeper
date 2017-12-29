@@ -3,7 +3,7 @@ package au.id.reif.timekeeper.service
 import java.util.UUID
 import java.util.concurrent.TimeUnit.SECONDS
 
-import akka.http.scaladsl.server.{Directive0, Route}
+import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json._
@@ -67,6 +67,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
   def route: Route = getAllTimersRoute ~ getOneTimerRoute ~ deleteTimerRoute() ~ updateTimerRoute() ~ createTimerRoute
 
   def pathTimers: Directive0 = path(BasePath)
+  def pathTimersWithId: Directive1[String] = path(BasePath / Segment)
 
   def handleCreateTimer(request: TimerStateRequest): Timer = {
     val timer = Timer(TimerId.generate, request.state, FiniteDuration.apply(0, SECONDS))
@@ -116,7 +117,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
   def getOneTimerRoute: Route =
     get {
       rejectEmptyResponse {
-        path(BasePath / Segment) { id =>
+        pathTimersWithId { id =>
           complete(handleGetOneTimer(TimerId(id)))
         }
       }
@@ -129,7 +130,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
   def updateTimerRoute(): Route =
     put {
       rejectEmptyResponse {
-        path(BasePath / Segment) { id =>
+        pathTimersWithId { id =>
           entity(as[TimerStateRequest]) { request =>
             complete(handleUpdateTimer(TimerId(id), request))
           }
@@ -142,7 +143,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
   def deleteTimerRoute(): Route =
     delete {
       rejectEmptyResponse {
-        path(BasePath / Segment) { id =>
+        pathTimersWithId { id =>
           complete(handleDeleteTimer(TimerId(id)))
         }
       }
