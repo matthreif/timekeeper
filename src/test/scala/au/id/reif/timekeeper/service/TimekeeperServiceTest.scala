@@ -122,4 +122,65 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
       status shouldBe NotFound
     }
   }
+
+  test("Deleting a timer should remove it from the database") {
+    val service = new TimekeeperService
+
+    var timer: Option[Timer] = None
+
+    Post("/timers", TimerStateRequest(Stopped)) ~> service.route ~> check {
+      handled shouldBe true
+      status shouldBe OK
+      timer = Some(responseAs[Timer])
+    }
+
+    Delete(s"/timers/${timer.get.id.id}") ~> service.route ~> check {
+      handled shouldBe true
+      status shouldBe OK
+    }
+
+    Get(s"/timers/${timer.get.id.id}") ~> Route.seal(service.route) ~> check {
+      handled shouldBe true
+      status shouldBe NotFound
+    }
+  }
+
+  test("Deleting a timer should not affect other timers") {
+    val service = new TimekeeperService
+
+    var timer1: Option[Timer] = None
+    var timer2: Option[Timer] = None
+
+    Post("/timers", TimerStateRequest(Stopped)) ~> service.route ~> check {
+      handled shouldBe true
+      status shouldBe OK
+      timer1 = Some(responseAs[Timer])
+    }
+
+    Post("/timers", TimerStateRequest(Stopped)) ~> service.route ~> check {
+      handled shouldBe true
+      status shouldBe OK
+      timer2 = Some(responseAs[Timer])
+    }
+
+    Delete(s"/timers/${timer1.get.id.id}") ~> service.route ~> check {
+      handled shouldBe true
+      status shouldBe OK
+    }
+
+    Get(s"/timers/${timer2.get.id.id}") ~> Route.seal(service.route) ~> check {
+      handled shouldBe true
+      status shouldBe OK
+      responseAs[Timer] shouldBe timer2.get
+    }
+  }
+
+  test("Deleting a non-existent timer should return 404 Not Found") {
+    val service = new TimekeeperService
+
+    Delete("/timers/non-existent") ~> Route.seal(service.route) ~> check {
+      handled shouldBe true
+      status shouldBe NotFound
+    }
+  }
 }
