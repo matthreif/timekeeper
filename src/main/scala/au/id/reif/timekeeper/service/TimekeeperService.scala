@@ -78,6 +78,9 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
 
   def handleGetOneTimer(id: TimerId): Option[Timer] = database.get(id)
 
+  def handleUpdateTimer(id: TimerId, request: TimerStateRequest): Option[Timer] =
+    database.get(id).fold[Option[Timer]](None)(timer => (database += id -> timer.copy(state = request.state)).get(id))
+
   // API
 
   // Create new timer in running state
@@ -117,10 +120,15 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
   // PUT /timers/{id} { "state": "running" }
   // Stop timer
   // PUT /timers/{id} { "state": "stopped" }
-  def updateTimerRoute(): Route = put {
-    pathTimers {
-      complete("Update timer")
-    }
+  def updateTimerRoute(): Route =
+    put {
+      rejectEmptyResponse {
+        path(BasePath / Segment) { id =>
+          entity(as[TimerStateRequest]) { request =>
+            complete(handleUpdateTimer(TimerId(id), request))
+          }
+        }
+      }
   }
 
   // Delete timer

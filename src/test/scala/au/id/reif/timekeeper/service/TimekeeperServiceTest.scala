@@ -85,4 +85,41 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
       status shouldBe NotFound
     }
   }
+
+  test("Updating a timer should update the underlying object") {
+    val service = new TimekeeperService
+
+    var timer: Option[Timer] = None
+
+    Post("/timers", TimerStateRequest(Stopped)) ~> service.route ~> check {
+      handled shouldBe true
+      status shouldBe OK
+      timer = Some(responseAs[Timer])
+    }
+
+    Put(s"/timers/${timer.get.id.id}", TimerStateRequest(Running)) ~> service.route ~> check {
+      handled shouldBe true
+      status shouldBe OK
+      responseAs[Timer] should have (
+        'state (Running)
+      )
+    }
+
+    Get(s"/timers/${timer.get.id.id}") ~> service.route ~> check {
+      handled shouldBe true
+      status shouldBe OK
+      responseAs[Timer] should have (
+        'state (Running)
+      )
+    }
+  }
+
+  test("Updating a non-existing time should return 404 Not Found") {
+    val service = new TimekeeperService
+
+    Put("/timers/non-existent", TimerStateRequest(Stopped)) ~> Route.seal(service.route) ~> check {
+      handled shouldBe true
+      status shouldBe NotFound
+    }
+  }
 }
