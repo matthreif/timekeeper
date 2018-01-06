@@ -17,8 +17,6 @@ case class StopWatchActor(clock: Clock) extends Actor {
   private val startSeconds = clock.instant().getEpochSecond
   override def receive: Receive = {
     case GetElapsed =>
-      println(s"${clock.instant().getEpochSecond}")
-      println(s"$startSeconds")
       val currentSeconds = clock.instant().getEpochSecond
       sender ! FiniteDuration(currentSeconds - startSeconds, SECONDS)
   }
