@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit.SECONDS
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import au.id.reif.timekeeper.domain.Timer
 import spray.json._
 
 import scala.collection.mutable
@@ -25,8 +26,6 @@ object TimerId {
 
 case class TimerId(id: String)
 
-case class Timer(id: TimerId, state: TimerState, elapsed: FiniteDuration)
-
 // collect your json format instances into a support trait:
 trait TimekeeperServiceJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val timerIdFormat: JsonFormat[TimerId] = jsonFormat1(TimerId.apply)
@@ -45,7 +44,7 @@ trait TimekeeperServiceJsonSupport extends SprayJsonSupport with DefaultJsonProt
       "length" -> JsNumber(dur.length),
       "unit" -> JsString(dur.unit.toString)
     )
-    def read(value: JsValue) = {
+    def read(value: JsValue): FiniteDuration = {
       value.asJsObject.getFields("length", "unit") match {
         case Seq(JsNumber(length), JsString(unit)) => FiniteDuration(length.toLong, unit.toLowerCase)
         case _ => deserializationError("FiniteDuration expected")
@@ -83,6 +82,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
     database.get(id).fold[Option[Timer]](None)(timer => (database += id -> timer.copy(state = request.state)).get(id))
 
   def handleDeleteTimer(id: TimerId): Option[Timer] =
+
     database.get(id).fold[Option[Timer]](None) { timer =>
       database -= id
       Some(timer)

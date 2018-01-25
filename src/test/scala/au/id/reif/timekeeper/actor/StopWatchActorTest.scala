@@ -4,27 +4,12 @@ import java.time.{Clock, Instant, ZoneId}
 import java.util.concurrent.TimeUnit.SECONDS
 
 import akka.actor.ActorSystem
-import akka.testkit.{ImplicitSender, TestKit}
+import akka.testkit.{ImplicitSender, TestActorRef, TestKit}
 import akka.util.Timeout
+import au.id.reif.timekeeper.util.TwoStepClock
 import org.scalatest.FunSuiteLike
 
 import scala.concurrent.duration.FiniteDuration
-
-class TwoStepClock(seconds: Long) extends Clock {
-  private var counter = 0
-
-  override def withZone(zone: ZoneId): Clock = ???
-  override def getZone: ZoneId = ???
-  override def instant(): Instant = {
-    val result =
-      if (counter == 0)
-        Instant.ofEpochSecond(0)
-      else
-        Instant.ofEpochSecond(seconds)
-      counter = counter + 1
-    result
-  }
-}
 
 class StopWatchActorTest extends TestKit(ActorSystem("stop-watch-test")) with ImplicitSender with FunSuiteLike {
 
@@ -32,13 +17,13 @@ class StopWatchActorTest extends TestKit(ActorSystem("stop-watch-test")) with Im
 
   implicit val timeout: Timeout = Timeout(seconds(3))
   private val fixedInstant = Instant.ofEpochMilli(1234)
-  private val fixedClock = Clock.fixed(fixedInstant, ZoneId.systemDefault())
+  private def fixedClock(instant: Instant) = Clock.fixed(fixedInstant, ZoneId.systemDefault())
   private val stepSeconds = 3
-  private val fixedStepClock = new TwoStepClock(stepSeconds)
+  private def fixedStepClock(seconds: Int) = new TwoStepClock(seconds)
 
-  test("Stop watch should return zero durations when a fixed clock is used") {
+  test("Stop watch should return zero duration when a fixed clock is used") {
 
-    val stopWatch = system.actorOf(StopWatchActor.props(fixedClock))
+    val stopWatch = TestActorRef(StopWatchActor.props(fixedClock(fixedInstant)))
 
     stopWatch ! GetElapsed
 
@@ -47,7 +32,7 @@ class StopWatchActorTest extends TestKit(ActorSystem("stop-watch-test")) with Im
 
   test("Stop watch should return a fixed duration when a fixed step clock is used") {
 
-    val stopWatch = system.actorOf(StopWatchActor.props(fixedStepClock))
+    val stopWatch = TestActorRef(StopWatchActor.props(fixedStepClock(stepSeconds)))
 
     stopWatch ! GetElapsed
 
