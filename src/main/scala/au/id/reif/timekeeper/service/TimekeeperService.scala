@@ -1,16 +1,23 @@
 package au.id.reif.timekeeper.service
 
+import java.time.Clock
 import java.util.UUID
 import java.util.concurrent.TimeUnit.SECONDS
 
+import akka.actor.{ActorRef, ActorSystem}
+import akka.pattern.ask
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import akka.util.Timeout
+import au.id.reif.timekeeper.actor.TimekeeperActor
+import au.id.reif.timekeeper.actor.TimekeeperActor.{GetTimer, Start, Stop}
 import au.id.reif.timekeeper.domain.Timer
 import spray.json._
 
 import scala.collection.mutable
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
 
 trait TimerState {
   val json: String
@@ -58,10 +65,13 @@ trait TimekeeperServiceJsonSupport extends SprayJsonSupport with DefaultJsonProt
 object TimekeeperService {
   final val BasePath = "timers"
 }
-final class TimekeeperService extends TimekeeperServiceJsonSupport {
+final class TimekeeperService(system: ActorSystem, clock: Clock) extends TimekeeperServiceJsonSupport {
   import TimekeeperService._
 
-  val database: mutable.Map[TimerId, Timer] = mutable.Map.empty
+  implicit val timeout: Timeout = Timeout(3 seconds)
+  implicit val ec: ExecutionContext = system.dispatcher
+
+  val database: mutable.Map[TimerId, ActorRef] = mutable.Map.empty
 
   def route: Route = getAllTimersRoute ~ getOneTimerRoute ~ deleteTimerRoute() ~ updateTimerRoute() ~ createTimerRoute
 
@@ -70,22 +80,51 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
 
   def handleCreateTimer(request: TimerStateRequest): Timer = {
     val timer = Timer(TimerId.generate, request.state, FiniteDuration.apply(0, SECONDS))
-    database += timer.id -> timer
+    database += timer.id -> system.actorOf(TimekeeperActor.props(timer, clock))
     timer
   }
 
-  def handleGetAllTimers(): Set[Timer] = database.values.toSet
+  def handleGetAllTimers(): Future[Set[Timer]] =
+    Future.sequence {
+      database.values.toSet.map { timekeeper: ActorRef =>
+        timekeeper.ask(GetTimer)
+          .mapTo[Timer]
+      }
+    }
 
-  def handleGetOneTimer(id: TimerId): Option[Timer] = database.get(id)
+  def handleGetOneTimer(id: TimerId): Future[Option[Timer]] =
+    database.get(id).fold[Future[Option[Timer]]](Future.successful(None)) { timekeeper: ActorRef =>
+      timekeeper.ask(GetTimer)
+        .mapTo[Timer]
+        .map(Some(_))
+    }
 
-  def handleUpdateTimer(id: TimerId, request: TimerStateRequest): Option[Timer] =
-    database.get(id).fold[Option[Timer]](None)(timer => (database += id -> timer.copy(state = request.state)).get(id))
+  def handleUpdateTimer(id: TimerId, request: TimerStateRequest): Future[Option[Timer]] =
+    database.get(id).fold[Future[Option[Timer]]](Future.successful(None)) { timekeeper: ActorRef =>
+      timekeeper.ask(GetTimer)
+        .mapTo[Timer]
+        .map { timer =>
+          (timer.state, request.state) match {
+            case (Running, Stopped) =>
+              timekeeper ! Stop
+              Some(timer.copy(state = Stopped))
+            case (Stopped, Running) =>
+              timekeeper ! Start
+              Some(timer.copy(state = Running))
+            case _ =>
+              Some(timer)
+          }
+        }
+    }
 
-  def handleDeleteTimer(id: TimerId): Option[Timer] =
-
-    database.get(id).fold[Option[Timer]](None) { timer =>
-      database -= id
-      Some(timer)
+  def handleDeleteTimer(id: TimerId): Future[Option[Timer]] =
+    database.get(id).fold[Future[Option[Timer]]](Future.successful(None)) { timekeeper =>
+      timekeeper.ask(GetTimer)
+        .mapTo[Timer]
+        .map { timer =>
+          database -= id
+          Some(timer)
+        }
     }
 
   // API
@@ -110,7 +149,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
   // }
   def getAllTimersRoute: Route = get {
     pathTimers {
-      complete(handleGetAllTimers())
+      onSuccess(handleGetAllTimers())(complete(_))
     }
   }
 
@@ -118,7 +157,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
     get {
       rejectEmptyResponse {
         pathTimersWithId { id =>
-          complete(handleGetOneTimer(TimerId(id)))
+          onSuccess(handleGetOneTimer(TimerId(id)))(complete(_))
         }
       }
     }
@@ -132,7 +171,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
       rejectEmptyResponse {
         pathTimersWithId { id =>
           entity(as[TimerStateRequest]) { request =>
-            complete(handleUpdateTimer(TimerId(id), request))
+            onSuccess(handleUpdateTimer(TimerId(id), request))(complete(_))
           }
         }
       }
@@ -144,7 +183,7 @@ final class TimekeeperService extends TimekeeperServiceJsonSupport {
     delete {
       rejectEmptyResponse {
         pathTimersWithId { id =>
-          complete(handleDeleteTimer(TimerId(id)))
+          onSuccess(handleDeleteTimer(TimerId(id)))(complete(_))
         }
       }
   }

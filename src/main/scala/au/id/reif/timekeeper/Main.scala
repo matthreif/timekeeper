@@ -1,5 +1,7 @@
 package au.id.reif.timekeeper
 
+import java.time.Clock
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
@@ -15,7 +17,7 @@ object Main extends App {
     implicit val materializer: ActorMaterializer = ActorMaterializer()
     // needed for the future flatMap/onComplete in the end
     implicit val executionContext: ExecutionContextExecutor = system.dispatcher
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, Clock.systemDefaultZone())
 
     val bindingFuture = Http().bindAndHandle(service.route, "localhost", 8080)
 

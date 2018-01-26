@@ -1,5 +1,6 @@
 package au.id.reif.timekeeper.service
 
+import java.time.Clock
 import java.util.concurrent.TimeUnit.SECONDS
 
 import akka.http.scaladsl.model.StatusCodes._
@@ -18,8 +19,10 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
 
   import TimekeeperServiceTest.ZeroSeconds
 
+  private def clock = Clock.systemDefaultZone()
+
   test("POST with timer state should create a new timer with the correct state") {
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, clock)
 
     var runningTimer: Option[Timer] = None
     var stoppedTimer: Option[Timer] = None
@@ -53,7 +56,7 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
   }
 
   test("Getting an existing timer should retrieve the correct timer") {
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, clock)
 
     var timer: Option[Timer] = None
 
@@ -79,7 +82,7 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
   }
 
   test("Getting an non-existent timer should return 404 Not Found") {
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, clock)
 
     Get("/timers/non-existent") ~> Route.seal(service.route) ~> check {
       handled shouldBe true
@@ -88,7 +91,7 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
   }
 
   test("Updating a timer should update the underlying object") {
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, clock)
 
     var timer: Option[Timer] = None
 
@@ -116,7 +119,7 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
   }
 
   test("Updating a non-existing time should return 404 Not Found") {
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, clock)
 
     Put("/timers/non-existent", TimerStateRequest(Stopped)) ~> Route.seal(service.route) ~> check {
       handled shouldBe true
@@ -125,7 +128,7 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
   }
 
   test("Deleting a timer should remove it from the database") {
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, clock)
 
     var timer: Option[Timer] = None
 
@@ -147,7 +150,7 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
   }
 
   test("Deleting a timer should not affect other timers") {
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, clock)
 
     var timer1: Option[Timer] = None
     var timer2: Option[Timer] = None
@@ -177,7 +180,7 @@ final class TimekeeperServiceTest extends FunSuite with Matchers with ScalatestR
   }
 
   test("Deleting a non-existent timer should return 404 Not Found") {
-    val service = new TimekeeperService
+    val service = new TimekeeperService(system, clock)
 
     Delete("/timers/non-existent") ~> Route.seal(service.route) ~> check {
       handled shouldBe true
