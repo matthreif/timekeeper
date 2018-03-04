@@ -14,3 +14,5 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % Test,
   "org.scalatest" %% "scalatest" % "3.0.4" % Test
 )
+
+enablePlugins(DockerPlugin)
