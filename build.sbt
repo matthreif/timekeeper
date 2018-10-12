@@ -16,3 +16,5 @@ libraryDependencies ++= Seq(
 )
 
 enablePlugins(DockerPlugin)
+
+dockerExposedPorts in Docker := Seq(8080)

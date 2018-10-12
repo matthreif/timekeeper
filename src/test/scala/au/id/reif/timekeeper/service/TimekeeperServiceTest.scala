@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit.SECONDS
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import au.id.reif.timekeeper.domain.Timer
+import au.id.reif.timekeeper.domain.{Stopped, Running, Timer}
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.concurrent.duration.FiniteDuration

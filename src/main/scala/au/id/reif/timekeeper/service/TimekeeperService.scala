@@ -12,30 +12,20 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.util.Timeout
 import au.id.reif.timekeeper.actor.TimekeeperActor
 import au.id.reif.timekeeper.actor.TimekeeperActor.{GetTimer, Start, Stop}
-import au.id.reif.timekeeper.domain.Timer
+import au.id.reif.timekeeper.domain.{Running, Stopped, Timer, TimerId, TimerState}
 import spray.json._
 
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 
-trait TimerState {
-  val json: String
-}
-case object Running extends TimerState { val json = "running"}
-case object Stopped extends TimerState { val json = "stopped"}
-
-case class TimerStateRequest(state: TimerState)
-
-object TimerId {
-  def generate: TimerId = TimerId(UUID.randomUUID().toString)
-}
-
-case class TimerId(id: String)
-
 // collect your json format instances into a support trait:
 trait TimekeeperServiceJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val timerIdFormat: JsonFormat[TimerId] = jsonFormat1(TimerId.apply)
+  //  implicit object timerIdFormat extends JsonFormat[TimerId] {
+  //    override def read(json: JsValue): TimerId = TimerId(json.toString())
+  //    override def write(obj: TimerId): JsValue = JsString(obj.id)
+  //  }
   implicit object timerStateFormat extends JsonFormat[TimerState] {
     override def read(json: JsValue): TimerState = json match {
       case JsString(Stopped.json) => Stopped
@@ -61,6 +51,8 @@ trait TimekeeperServiceJsonSupport extends SprayJsonSupport with DefaultJsonProt
   implicit val timerStateRequestFormat: RootJsonFormat[TimerStateRequest] = jsonFormat1(TimerStateRequest.apply)
   implicit val timerFormat: RootJsonFormat[Timer] = jsonFormat3(Timer.apply)
 }
+
+case class TimerStateRequest(state: TimerState)
 
 object TimekeeperService {
   final val BasePath = "timers"
