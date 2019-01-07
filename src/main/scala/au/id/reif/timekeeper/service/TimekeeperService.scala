@@ -73,7 +73,6 @@ final class TimekeeperService(system: ActorSystem, clock: Clock) extends Timekee
   def handleCreateTimer(request: TimerStateRequest): Timer = {
     val timer = Timer(TimerId.generate, request.state, FiniteDuration.apply(0, SECONDS))
     database += timer.id -> system.actorOf(TimekeeperActor.props(timer, clock))
-    System.out.println(s"Saved to database: ${timer.id} -> ${database.get(timer.id)}")
     timer
   }
 
@@ -90,10 +89,6 @@ final class TimekeeperService(system: ActorSystem, clock: Clock) extends Timekee
     database.get(id).fold[Future[Option[Timer]]](Future.successful(None)) { timekeeper: ActorRef =>
       timekeeper.ask(GetTimer)
         .mapTo[Timer]
-        .map{ timer =>
-          System.out.println(s"From database: $timer")
-          timer
-        }
         .map(Some(_))
     }
   }
@@ -154,11 +149,11 @@ final class TimekeeperService(system: ActorSystem, clock: Clock) extends Timekee
 
   def getOneTimerRoute: Route =
     get {
-//      rejectEmptyResponse {
+      rejectEmptyResponse {
         pathTimersWithId { id =>
           onSuccess(handleGetOneTimer(TimerId(id)))(complete(_))
         }
-//      }
+      }
     }
 
   // Start timer
