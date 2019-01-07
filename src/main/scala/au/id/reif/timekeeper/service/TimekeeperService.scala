@@ -84,13 +84,11 @@ final class TimekeeperService(system: ActorSystem, clock: Clock) extends Timekee
       }
     }
 
-  def handleGetOneTimer(id: TimerId): Future[Option[Timer]] = {
-    System.out.println(s"Database lookup for: $id -> ${database.get(id)}")
+  def handleGetOneTimer(id: TimerId): Future[Option[Timer]] =
     database.get(id).fold[Future[Option[Timer]]](Future.successful(None)) { timekeeper: ActorRef =>
       timekeeper.ask(GetTimer)
         .mapTo[Timer]
         .map(Some(_))
-    }
   }
 
   def handleUpdateTimer(id: TimerId, request: TimerStateRequest): Future[Option[Timer]] =
