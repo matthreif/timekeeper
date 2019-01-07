@@ -21,11 +21,11 @@ import scala.concurrent.duration._
 
 // collect your json format instances into a support trait:
 trait TimekeeperServiceJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-  implicit val timerIdFormat: JsonFormat[TimerId] = jsonFormat1(TimerId.apply)
-  //  implicit object timerIdFormat extends JsonFormat[TimerId] {
-  //    override def read(json: JsValue): TimerId = TimerId(json.toString())
-  //    override def write(obj: TimerId): JsValue = JsString(obj.id)
-  //  }
+//  implicit val timerIdFormat: JsonFormat[TimerId] = jsonFormat1(TimerId.apply)
+  implicit object timerIdFormat extends JsonFormat[TimerId] {
+    override def read(json: JsValue): TimerId = TimerId(json.convertTo[String])
+    override def write(obj: TimerId): JsValue = JsString(obj.id)
+  }
   implicit object timerStateFormat extends JsonFormat[TimerState] {
     override def read(json: JsValue): TimerState = json match {
       case JsString(Stopped.json) => Stopped
@@ -73,6 +73,7 @@ final class TimekeeperService(system: ActorSystem, clock: Clock) extends Timekee
   def handleCreateTimer(request: TimerStateRequest): Timer = {
     val timer = Timer(TimerId.generate, request.state, FiniteDuration.apply(0, SECONDS))
     database += timer.id -> system.actorOf(TimekeeperActor.props(timer, clock))
+    System.out.println(s"Saved to database: ${timer.id} -> ${database.get(timer.id)}")
     timer
   }
 
@@ -84,12 +85,18 @@ final class TimekeeperService(system: ActorSystem, clock: Clock) extends Timekee
       }
     }
 
-  def handleGetOneTimer(id: TimerId): Future[Option[Timer]] =
+  def handleGetOneTimer(id: TimerId): Future[Option[Timer]] = {
+    System.out.println(s"Database lookup for: $id -> ${database.get(id)}")
     database.get(id).fold[Future[Option[Timer]]](Future.successful(None)) { timekeeper: ActorRef =>
       timekeeper.ask(GetTimer)
         .mapTo[Timer]
+        .map{ timer =>
+          System.out.println(s"From database: $timer")
+          timer
+        }
         .map(Some(_))
     }
+  }
 
   def handleUpdateTimer(id: TimerId, request: TimerStateRequest): Future[Option[Timer]] =
     database.get(id).fold[Future[Option[Timer]]](Future.successful(None)) { timekeeper: ActorRef =>
@@ -147,11 +154,11 @@ final class TimekeeperService(system: ActorSystem, clock: Clock) extends Timekee
 
   def getOneTimerRoute: Route =
     get {
-      rejectEmptyResponse {
+//      rejectEmptyResponse {
         pathTimersWithId { id =>
           onSuccess(handleGetOneTimer(TimerId(id)))(complete(_))
         }
-      }
+//      }
     }
 
   // Start timer
