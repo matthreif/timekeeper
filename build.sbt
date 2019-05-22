@@ -15,6 +15,16 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.0.4" % Test
 )
 
-enablePlugins(DockerPlugin)
+enablePlugins(sbtdocker.DockerPlugin, JavaAppPackaging)
 
-dockerExposedPorts in Docker := Seq(8080)
+dockerfile in docker := {
+  val appDir: File = stage.value
+  val targetDir = "/app"
+
+  new Dockerfile {
+    from("openjdk:latest")
+    entryPoint(s"$targetDir/bin/${executableScriptName.value}")
+    copy(appDir, targetDir)
+    expose(8080)
+  }
+}

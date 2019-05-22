@@ -19,9 +19,9 @@ object Main extends App {
     implicit val executionContext: ExecutionContextExecutor = system.dispatcher
     val service = new TimekeeperService(system, Clock.systemDefaultZone())
 
-    val bindingFuture = Http().bindAndHandle(service.route, "localhost", 8080)
+    val bindingFuture = Http().bindAndHandle(service.route, "0.0.0.0", 8080)
 
-    println(s"Server online at http://localhost:8080/\nPress RETURN to stop...")
+    println(s"Server online at http://0.0.0.0:8080/\nPress RETURN to stop...")
     StdIn.readLine() // let it run until user presses return
 
     bindingFuture
